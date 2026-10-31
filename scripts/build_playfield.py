@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-build_playfield.py - assemble the whole Lady Luck playfield from the piece SVGs
-==============================================================================
+build_playfield.py - assemble the whole playfield from the piece SVGs
+=====================================================================
 
-Reads  "playfield placements.csv"  (in the Lady Luck folder) and writes
-       "Lady Luck playfield.svg"   - the whole board at true scale (300 units/in).
+Run it from the game folder (Lady Luck, Tropic Isle ...). Reads that folder's
+"playfield.json" (see playfield_config.py) and "playfield placements.csv", and writes
+       "<game> playfield.svg"   - the whole board at true scale (300 units/in).
 
 The piece files stay the source of truth. Change a piece, then rerun this script:
 
@@ -14,7 +15,7 @@ No extra packages needed (plain Python 3).
 
 placements.csv columns
 ----------------------
-  file            piece SVG in the Lady Luck folder
+  file            piece SVG in the game folder (or its stencils/ folder)
   origin_x_in     X of the piece's top-left corner (its 0,0) on the board, inches
   origin_y_in     Y of that corner, inches (board coordinates: origin = lower-left
                   corner of the wood, Y up toward the arch)
@@ -26,7 +27,7 @@ placements.csv columns
 Output layers (bottom to top)
 -----------------------------
   photo (underlay)        straightened photo, linked (images/playfield aligned 150ppi.jpg)
-  grid (reference)        board outline, 3x3 grid, artwork centre line X 9.20
+  grid (reference)        board outline, 3x3 grid, artwork centre line (art_centre_x_in)
   background <colour>     the background file's colours (rays, rings), below all pieces
   cream (preview - no cut) the base coat where the pieces leave it showing, from
                           "playfield cream preview.svg" (locked; for looking only)
@@ -36,7 +37,7 @@ Output layers (bottom to top)
   holes (registration)    every piece's holes/posts, one group per piece
   centerlines (reference) centre lines of the pieces that have them (hidden)
   controls (reference)    control points from "playfield controls.csv" (+ the hole list if
-                          "Lady Luck hole list.csv" is in the folder)
+                          "<game> hole list.csv" is in the folder)
 
 Pieces are copied in as plain paths with their coordinates moved/rotated into place
 (no clones, no transforms), so the file opens cleanly in Inkscape and Silhouette.
@@ -46,11 +47,14 @@ import csv, math, os, re, sys
 import xml.etree.ElementTree as ET
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FOLDER = os.path.dirname(HERE)
-PLACEMENTS = os.path.join(FOLDER, "playfield placements.csv")
-OUT = os.path.join(FOLDER, "Lady Luck playfield.svg")
-HOLE_LIST = os.path.join(FOLDER, "Lady Luck hole list.csv")
-CONTROLS_CSV = os.path.join(FOLDER, "playfield controls.csv")
+sys.path.insert(0, HERE)
+import playfield_config
+FOLDER = os.getcwd()                       # the game folder you run it from
+CFG = playfield_config.load(FOLDER)
+PLACEMENTS = os.path.join(FOLDER, CFG["placements"])
+OUT = os.path.join(FOLDER, CFG["master_svg"])
+HOLE_LIST = os.path.join(FOLDER, CFG["hole_list"])
+CONTROLS_CSV = os.path.join(FOLDER, CFG["controls"])
 PIECE_DIRS = ["", "stencils"]   # where pieces are looked for, in order (main folder, then stencils/)
 
 def find_piece(fn):
@@ -59,10 +63,10 @@ def find_piece(fn):
         p = os.path.join(FOLDER, d, fn)
         if os.path.exists(p): return p
     return os.path.join(FOLDER, fn)
-UNDERLAY = "images/playfield aligned 150ppi.jpg"
+UNDERLAY = CFG["underlay"]
 
 U = 300.0                     # units per inch
-BOARD_W, BOARD_H = 20.3125, 42.0
+BOARD_W, BOARD_H = float(CFG["board_w_in"]), float(CFG["board_h_in"])
 SVG = "http://www.w3.org/2000/svg"
 INK = "http://www.inkscape.org/namespaces/inkscape"
 SOD = "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
@@ -70,19 +74,11 @@ XL = "http://www.w3.org/1999/xlink"
 ET.register_namespace("", SVG); ET.register_namespace("inkscape", INK)
 ET.register_namespace("sodipodi", SOD); ET.register_namespace("xlink", XL)
 
-COLOUR_ORDER = ["yellow", "green", "teal", "blue", "red", "black"]
+COLOUR_ORDER = list(CFG["colour_order"])
 
-# fallback control points if "playfield controls.csv" is missing (board inches)
-CONTROLS = [
-    ("UC bumper", 9.1875, 32.9375), ("CL red bumper", 4.8125, 26.9375),
-    ("CC bumper", 9.25, 25.9375), ("CR red bumper", 13.625, 26.9375),
-    ("left saucer", 1.34375, 21.25), ("right saucer", 17.0, 21.25),
-    ("left advance rollover", 3.125, 23.3125), ("right advance rollover", 15.375, 23.3125),
-    ("hex rollover", 9.21875, 13.9375), ("top rollover", 9.1875, 38.125),
-    ("SPSA", 9.1875, 8.0), ("left outlane slot", 1.1875, 11.0), ("right outlane slot", 17.15625, 11.0),
-    ("LL corner", 0.15625, 3.5625), ("LR corner", 20.125, 5.0625), ("UL corner", 0.25, 40.8125),
-    ("LL-W2", 6.625, 3.5), ("LR-W2", 15.09375, 0.53125), ("UL-W2", 0.3125, 31.8125), ("UR-W9", 18.8125, 36.53125),
-]
+# fallback control points if the controls csv is missing: "fallback_controls" in playfield.json,
+# as [["name", x_in, y_in], ...] (board inches)
+CONTROLS = [tuple(c) for c in CFG.get("fallback_controls", [])]
 
 # ---------------------------------------------------------------- path transform
 TOK = re.compile(r"[MmLlHhVvCcSsQqTtAaZz]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
@@ -177,7 +173,7 @@ def main():
     W, H = BOARD_W * U, BOARD_H * U
     svg = ET.Element("{%s}svg" % SVG, {"width": "%.4fin" % BOARD_W, "height": "%.4fin" % BOARD_H,
                                        "viewBox": "0 0 %s %s" % (fmt(W), fmt(H)), "version": "1.1"})
-    ET.SubElement(svg, "{%s}title" % SVG).text = "Lady Luck playfield (assembled - do not cut)"
+    ET.SubElement(svg, "{%s}title" % SVG).text = "%s playfield (assembled - do not cut)" % CFG["name"]
 
     under = layer(svg, "photo", "photo (underlay)", style="opacity:0.6")
     under.set("{%s}insensitive" % SOD, "true")
@@ -189,11 +185,11 @@ def main():
     grid.set("{%s}insensitive" % SOD, "true")
     gs = "fill:none;stroke:#7a7a7a;stroke-width:3"
     path(grid, "M0,0H%sV%sH0Z" % (fmt(W), fmt(H)), "fill:none;stroke:#000000;stroke-width:4", id="board-outline")
-    for x in (6.771, 13.542):
+    for x in (round(BOARD_W / 3, 3), round(BOARD_W * 2 / 3, 3)):
         path(grid, "M%s,0V%s" % (fmt(x * U), fmt(H)), gs + ";stroke-dasharray:30,20")
-    for y in (14, 28):
+    for y in (BOARD_H / 3, BOARD_H * 2 / 3):
         path(grid, "M0,%sH%s" % (fmt((BOARD_H - y) * U), fmt(W)), gs + ";stroke-dasharray:30,20")
-    path(grid, "M%s,0V%s" % (fmt(9.20 * U), fmt(H)), "fill:none;stroke:#3060c0;stroke-width:2;stroke-dasharray:8,12", id="art-centre-line")
+    path(grid, "M%s,0V%s" % (fmt(float(CFG["art_centre_x_in"]) * U), fmt(H)), "fill:none;stroke:#3060c0;stroke-width:2;stroke-dasharray:8,12", id="art-centre-line")
 
     bg_layers = {c: layer(svg, "bg-" + c, "background " + c) for c in COLOUR_ORDER}
     cream = layer(svg, "cream", "cream (preview - no cut)")

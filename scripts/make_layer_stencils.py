@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-make_layer_stencils.py - Lady Luck stencils for flat-colour artwork (the girls etc.)
+make_layer_stencils.py - stencils for flat-colour artwork (figures etc.)
 ==================================================================================
 
 For artwork drawn as one layer per paint colour (e.g. "CL dancing girl.svg":

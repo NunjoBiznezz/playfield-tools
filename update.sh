@@ -1,6 +1,6 @@
 #!/bin/bash
+# Bring the packages in ~/.venvs/playfield-tools up to date with requirements.txt.
+# (Add a package by putting its name in requirements.txt, then run this.)
 set -e
 cd "$(dirname "$0")"
-
-pip freeze > requirements.txt
-
+"$HOME/.venvs/playfield-tools/bin/pip" install --upgrade -r requirements.txt

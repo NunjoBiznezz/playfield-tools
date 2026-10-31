@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-make_all_stencils.py - one command for all the Lady Luck stencils
-=================================================================
+make_all_stencils.py - one command for all of a game's stencils
+===============================================================
 
 Looks at each source SVG, works out what it needs from its layers, and calls the
 right generator for it. Each kind of stencil keeps its own script; this one only
@@ -17,10 +17,12 @@ decides and calls them:
                           its colour stencils leave out the keyline edges (subpaths lying
                           on the keyline band), because the border stencil paints those,
                           and a layer that is only keyline gets no colour stencil.
-  make_green_rings.py     the LC green rings (built from Lady Luck playfield.svg, not
-                          from an SVG in stencils/) - run when doing the whole folder
+  game steps              scripts that belong to one game only (e.g. Lady Luck's
+                          game_scripts/make_green_rings.py), listed under "game_steps"
+                          in that game's playfield.json - run when doing the whole
+                          folder, or when the file a step makes is named
 
-Run from the project root (the Lady Luck folder):
+Run from the game folder (Lady Luck, Tropic Isle ...):
     bash scripts/stencils.sh                          every source SVG in stencils/
     bash scripts/stencils.sh "stencils/UL pop bumper.svg"   just this one
     bash scripts/stencils.sh stencils/UL*.svg         several
@@ -41,18 +43,23 @@ import xml.etree.ElementTree as ET
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import importlib.util
 import make_stencils
 import make_layer_stencils
+import playfield_config
+
+CFG = playfield_config.load()
+# files in stencils/ that are not stencil sources (checked against the file name) - from playfield.json
+NOT_SOURCES = dict(CFG['not_sources'])
+GAME_STEPS = list(CFG['game_steps'])
 
 
-# files in stencils/ that are not stencil sources (checked against the file name)
-NOT_SOURCES = {
-    '* suits.svg': 'old suit-only copy; the suits are now in the pop bumper file itself',
-    'insert masks letter.svg': 'already a cut sheet',
-    'UL slingshot white mask.svg': 'already a cut sheet',
-    'LC green rings stencil pieces.svg': 'made by make_green_rings.py',
-}
-GREEN_RINGS = 'LC green rings stencil pieces.svg'
+def run_game_step(step):
+    """import a game-only script from the game folder and call its main()"""
+    path = os.path.join(os.getcwd(), step['script'])
+    spec = importlib.util.spec_from_file_location(os.path.splitext(os.path.basename(path))[0], path)
+    mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+    mod.main()
 
 
 def not_a_source(name):
@@ -112,10 +119,13 @@ def main(argv=None):
         else: print(f'!! {t}: not found')
 
     made, skipped, failed = [], [], []
-    run_green = whole_folder
+    run_steps = [st for st in GAME_STEPS if whole_folder]
     for path in targets:
         name = os.path.basename(path); stem = os.path.splitext(name)[0]
-        if name == GREEN_RINGS: run_green = True; continue
+        step = next((st for st in GAME_STEPS if st.get('source') == name), None)
+        if step:
+            if step not in run_steps: run_steps.append(step)
+            continue
         why = not_a_source(name)
         if why: skipped.append((name, why)); continue
         steps, why = plan(path)
@@ -137,20 +147,22 @@ def main(argv=None):
                 ok = False; traceback.print_exc(); failed.append((name, f'{type(e).__name__}: {e}'))
         if ok: made.append(name)
 
-    if run_green:
-        print('\n== LC green rings: made from Lady Luck playfield.svg  [make_green_rings.py]')
-        if not os.path.exists('Lady Luck playfield.svg'):
-            failed.append(('LC green rings', 'run from the Lady Luck folder (needs Lady Luck playfield.svg)'))
+    for st in run_steps:
+        n = st.get('name') or st['script']
+        print(f"\n== {n}  [{st['script']}]")
+        if not os.path.exists(st['script']):
+            failed.append((n, f"{st['script']} not found - run from the game folder"))
+        elif st.get('needs') and not os.path.exists(st['needs']):
+            failed.append((n, f"needs {st['needs']} - run build_playfield.py first"))
         elif a.dry_run:
-            made.append('LC green rings')
+            made.append(n)
         else:
             try:
-                import make_green_rings
-                make_green_rings.main(); made.append('LC green rings')
+                run_game_step(st); made.append(n)
             except SystemExit as e:
-                failed.append(('LC green rings', str(e)))
+                failed.append((n, str(e)))
             except Exception as e:
-                traceback.print_exc(); failed.append(('LC green rings', f'{type(e).__name__}: {e}'))
+                traceback.print_exc(); failed.append((n, f'{type(e).__name__}: {e}'))
 
     print(f'\n{"Would make" if a.dry_run else "Made"}: {len(made)}' + ('' if a.dry_run else f'  (in {outdir})'))
     if skipped:

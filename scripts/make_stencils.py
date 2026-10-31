@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-make_stencils.py - Lady Luck playfield stencil generator
+make_stencils.py - playfield stencil generator
 =========================================================
 
 Reads a source SVG that has a "centerline" layer (the centre of the keyline
