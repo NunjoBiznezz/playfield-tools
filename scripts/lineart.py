@@ -1,6 +1,7 @@
 """Rebuild painted line art (label image: 0 outside, BLACK lines, other colour labels) as clean vector shapes:
 outer outline and inner lines get one constant width each, every line is a few smooth Bezier curves,
 sharp corners are kept sharp, colour regions are exactly the spaces between the lines."""
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import numpy as np, cv2, networkx as nx
 from skimage.morphology import skeletonize
 from shapely.geometry import Polygon, LineString, Point

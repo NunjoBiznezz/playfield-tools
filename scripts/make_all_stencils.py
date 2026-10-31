@@ -36,8 +36,9 @@ Before a piece is made, its old sheets in _generated ("<name> - *.svg") are remo
 so nothing stale is left over from an earlier numbering (--keep-old to keep them).
 The source SVGs are never changed.
 
-Needs: Python 3.9+, numpy, shapely (stencils.sh sets these up in ~/.venvs/stencils).
+Needs: Python 3.9+, numpy, shapely (in ~/.venvs/playfield-tools - bash scripts/setup.sh).
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import argparse, fnmatch, glob, os, sys, traceback
 import xml.etree.ElementTree as ET
 

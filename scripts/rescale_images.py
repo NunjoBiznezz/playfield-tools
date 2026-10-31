@@ -24,6 +24,7 @@ Output goes next to each file as <name>_scaled.<ext>; originals are untouched
 Setup (once):  python3 -m pip install pillow
 """
 
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import argparse
 import os
 import sys

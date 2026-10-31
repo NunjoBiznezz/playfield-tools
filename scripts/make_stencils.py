@@ -59,6 +59,7 @@ Options (all in inches)
 
 Needs: Python 3.9+, numpy, shapely  (pip install numpy shapely)
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import argparse, math, os, re, sys
 import xml.etree.ElementTree as ET
 import numpy as np

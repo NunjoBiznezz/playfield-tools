@@ -1,4 +1,5 @@
 """Fit a closed polyline with few cubic Beziers: sharp corners kept (and sharpened), smooth sweeps as single curves."""
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import numpy as np
 def _resample(P,step=1.0):
     P=np.vstack([P,P[:1]]); d=np.r_[0,np.cumsum(np.hypot(*np.diff(P,axis=0).T))]

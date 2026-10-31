@@ -66,6 +66,7 @@ The output is a normal, searchable PDF you can open in Preview, Acrobat, or
 any other PDF viewer, and Cmd-F / Ctrl-F to find text on it.
 """
 
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import argparse
 import glob
 import os

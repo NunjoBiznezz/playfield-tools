@@ -38,7 +38,14 @@ with everything else without being part of this shared repo.
 
 ## Python
 
-- Stencils: `scripts/stencils.sh` sets up `~/.venvs/stencils` by itself the first time.
-- Image / OCR scripts: run `bash setup.sh` once; it makes `~/.venvs/playfield-tools`.
+All the scripts share one environment, `~/.venvs/playfield-tools`, kept outside iCloud
+on purpose (iCloud doesn't sync Python environments well). Set it up once, from any
+game folder (needs internet):
 
-Both live outside iCloud on purpose - iCloud doesn't sync Python environments well.
+```bash
+bash scripts/setup.sh
+```
+
+After that the scripts find it by themselves - `python3 scripts/make_all_stencils.py`
+works without activating anything, and `stencils.sh` runs setup for you the first time.
+To add a package, put its name in `scripts/requirements.txt` and run `bash scripts/update.sh`.

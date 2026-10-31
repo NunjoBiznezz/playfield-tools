@@ -1,3 +1,4 @@
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import numpy as np, cv2
 from shapely.geometry import Polygon
 X0=1250.28

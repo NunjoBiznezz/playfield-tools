@@ -20,6 +20,7 @@ Options:
   --all            also process unrectified photos (72 dpi straight from the phone);
                    by default only rectified images (~300 dpi) are cropped
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import argparse, glob, os, sys
 import cv2, numpy as np
 from PIL import Image

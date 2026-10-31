@@ -20,6 +20,7 @@ nearest paint colour (soft anti-aliased edge pixels are decided by a majority vo
 their neighbours, so they never become slivers of a wrong colour), and each colour is
 traced to smooth curves with potrace.
 """
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import argparse
 import glob
 import os

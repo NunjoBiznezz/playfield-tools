@@ -73,7 +73,7 @@ with the registration marks (`postN` groups and `holeN` paths).
 cd ~/Documents/Pinball/Williams/Lady\ Luck
 bash scripts/stencils.sh "stencils/UL slingshot.svg"
 ```
-(stencils.sh runs make_all_stencils.py, which sends a centerline file here.) The first run sets up its own small Python environment in `~/.venvs/stencils`
+(stencils.sh runs make_all_stencils.py, which sends a centerline file here.) The first run sets up the shared Python environment in `~/.venvs/playfield-tools` (scripts/setup.sh)
 (needs internet once, takes a minute). After that it runs offline. Each Mac gets its
 own copy, so it doesn't matter that the project folder syncs between them.
 (The project's `.venv` folder was made on the Mac mini and points at that Mac's paths,

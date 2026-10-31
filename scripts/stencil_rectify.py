@@ -37,6 +37,7 @@ EXAMPLES
   python3 stencil_rectify.py photo.jpg --crop --margin 0.5   # keep only the clicked area + 1/2"
 """
 
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import argparse
 import json
 import os

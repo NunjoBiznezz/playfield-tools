@@ -1,0 +1,13 @@
+# Packages the playfield scripts use. setup.sh installs them in ~/.venvs/playfield-tools.
+numpy
+scipy
+shapely
+scikit-image
+networkx
+opencv-python
+pillow
+potracer
+pytesseract
+reportlab
+pypdf
+pikepdf

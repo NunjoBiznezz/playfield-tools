@@ -1,4 +1,5 @@
 """Serialise shapely geometry to SVG paths using true circular arcs where the boundary lies on known circles."""
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import numpy as np, sys
 import curvefit as CF
 CURVES=0   # set to a tolerance (px) to fit non-circle parts with Beziers

@@ -1,3 +1,4 @@
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import sys, json
 from PIL import Image
 Image.MAX_IMAGE_PIXELS = None
