@@ -1,6 +1,29 @@
-"""Rebuild painted line art (label image: 0 outside, BLACK lines, other colour labels) as clean vector shapes:
-outer outline and inner lines get one constant width each, every line is a few smooth Bezier curves,
-sharp corners are kept sharp, colour regions are exactly the spaces between the lines."""
+"""lineart.py - rebuild painted line art as clean vector shapes
+============================================================
+
+Helper library (not run on its own). Input is a LABEL IMAGE of a piece of art: a numpy
+array the size of the photo where 0 = outside the art, `black` (default 6) = the black
+line work, and other numbers = the paint colours (as made by classifying a rectified
+photo). Output is clean geometry for the stencils, following the project rules:
+  * the outer outline is one constant width (WO pixels) and the inner lines another (WI),
+  * every line is a few smooth Bezier curves (see curvefit.py), sharp corners stay sharp,
+  * each colour area is exactly the space between the lines.
+
+There are five versions of the main routine - they are successive attempts, kept
+because different pieces of art came out best with different ones. All take the label
+image and return a dict with S (the art's silhouette), I (inside the outer outline),
+black (all black line work), cols ({colour label: shape}) and node counts.
+  build()   find each black line's centre (skeleton), fit it, give it width WI
+  build2()  lines = boundaries between neighbouring colour regions
+  build3()  colour regions are smoothed and pulled back WI/2; black = what is left
+  build4()  like build2 but on an exact boundary map (pixel cracks), so the regions
+            always meet and close up properly
+  build5()  like build4, but lines carry on straight through T-junctions and branch
+            lines are extended to meet them (the usual choice for figure art)
+
+Shapes are shapely geometry in the photo's pixel coordinates; scale/convert them to
+SVG (300 units = 1 inch) afterwards, e.g. with arcpath.py or curvefit.to_d().
+"""
 import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import numpy as np, cv2, networkx as nx
 from skimage.morphology import skeletonize
@@ -9,6 +32,7 @@ from shapely.ops import unary_union
 import curvefit as CF
 
 def _bez_pts(segs,n=24):
+    """List of Bezier curves -> one dense polyline (n points per curve)."""
     return np.vstack([CF._bez(*c,np.linspace(0,1,n)[:-1]) for c in segs]+[segs[-1][3][None]])
 
 def _single_fits(Q,tol):
@@ -17,6 +41,8 @@ def _single_fits(Q,tol):
     return CF._fit(Q,CF._tan(Q,0,1,min(8,len(Q)-1)),CF._tan(Q,len(Q)-1,-1,min(8,len(Q)-1)),tol)
 
 def _split_corners(Q,k=10,thr=30):
+    """Indices where an open, evenly spaced line should be split: its two ends plus sharp
+    corners (turn > thr degrees over k points), at least 2k apart."""
     n=len(Q); cs=[]
     if n>2*k+2:
         a=Q[k:-k]-Q[:-2*k]; b=Q[2*k:]-Q[k:-k]
@@ -26,6 +52,7 @@ def _split_corners(Q,k=10,thr=30):
     return [0]+sorted(cs)+[n-1]
 
 def _resample_open(P,step=1.0):
+    """Open line -> points spaced evenly every `step` pixels."""
     d=np.r_[0,np.cumsum(np.hypot(*np.diff(P,axis=0).T))]
     if d[-1]<1e-6: return P[:1]
     t=np.r_[np.arange(0,d[-1],step),d[-1]]; return np.c_[np.interp(t,d,P[:,0]),np.interp(t,d,P[:,1])]
@@ -44,6 +71,9 @@ def _sharpen(pieces,P,cuts):
     return pieces
 
 def fit_open_joints(P,joints,tol,cjoints=()):
+    """Fit an open line that passes through junctions with other lines. `joints` are point
+    indices where the line must stay smooth but pass close to the junction; `cjoints` are
+    indices that must be sharp corners. Returns (dense fitted polyline, number of pieces)."""
     P=np.asarray(P,float)
     allj=sorted(set(list(joints)+list(cjoints))); isC={j:(j in cjoints) for j in allj}
     marks=[0]+allj+[len(P)-1]; R=[];J=[]
@@ -65,12 +95,14 @@ def fit_open_joints(P,joints,tol,cjoints=()):
         if np.linalg.norm(X-Q[c])<30:
             Q[c-13:c]=np.linspace(A2,X,14)[1:]; Q[c]=X; Q[c+1:c+14]=np.linspace(X,B1,14)[:-1]
     def fit_piece(a,b,t1=None,t2=None):
+        """Fit points a..b with Beziers, using the given end directions if any."""
         S_=Q[a:b+1]
         if len(S_)<4: return [ (S_[0],S_[0]+(S_[-1]-S_[0])/3,S_[-1]-(S_[-1]-S_[0])/3,S_[-1]) ]
         t1=CF._tan(S_,0,1,min(10,len(S_)-1)) if t1 is None else t1
         t2=CF._tan(S_,len(S_)-1,-1,min(10,len(S_)-1)) if t2 is None else t2
         return CF._fit(S_,t1,t2,tol)
     def smooth_tan(j):
+        """Direction of the line at index j, averaged over 25 points each side."""
         a=Q[max(0,j-25)]; b=Q[min(n-1,j+25)]; t=b-a; return t/(np.linalg.norm(t)+1e-9)
     cuts=[0]+hard+[n-1]
     pieces=[]
@@ -111,6 +143,12 @@ def fit_curve(P,tol=3.0,closed=False,thr=32,sharpen=True):
     return out, sum(1 for _ in pieces)
 
 def skeleton_branches(mask,min_len=12,edge=None,WO=13.0,up=2):
+    """Black-line mask -> the centre lines of the lines, as branches between junctions. The mask
+    is enlarged `up` times and smoothed first, so the centre lines are smooth. Short spurs,
+    isolated flecks and stubs at the outline's corners (near `edge`) are dropped; branches
+    that run straight through a junction are joined (merge_through). Each branch is a dict:
+    pts, ends (junction points), free (True for an end that stops in mid-air), or loop=True
+    for a closed ring."""
     m=cv2.resize(mask.astype(np.float32),(mask.shape[1]*up,mask.shape[0]*up),interpolation=cv2.INTER_LINEAR)
     m=cv2.GaussianBlur(m,(0,0),up*1.2)>0.5
     sk=skeletonize(m)
@@ -164,6 +202,8 @@ def skeleton_branches(mask,min_len=12,edge=None,WO=13.0,up=2):
     return merge_through(out)
 
 def _dir(p,end,k=15):
+    """Unit direction along branch points p, pointing in from its start (end=0) or its end
+    (end=1)."""
     k=min(k,len(p)-1)
     v=(p[k]-p[0]) if end==0 else (p[-1-k]-p[-1]); return v/(np.linalg.norm(v)+1e-9)
 def merge_through(bs,minang=145):
@@ -202,6 +242,11 @@ def merge_through(bs,minang=145):
     return bs
 
 def build(L,black=6,WO=13.0,WI=10.5,tol=12.0,tol_outer=6.0,T=4.0,inner_scale=1.0):
+    """Method 1 - skeleton: outline = the art's silhouette fitted with curves and given width
+    WO; inner lines = the centre lines of the black pixels (skeleton_branches), each fitted
+    with curves (tolerance tol px) and given width WI; free ends near the outline are run on
+    to it. Colour areas are what is left between the lines, each given the colour most of its
+    pixels have."""
     fpm=(L>0).astype(np.uint8)
     cs,_=cv2.findContours(fpm,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
     c=max(cs,key=cv2.contourArea)[:,0,:].astype(float)
@@ -278,6 +323,9 @@ def _order_path(pix):
     return paths
 
 def build2(L,black=6,WO=13.0,WI=10.5,tol=12.0,tol_outer=6.0,smooth=3.0,minlen=15):
+    """Method 2 - region boundaries: every inner line is drawn along the boundary between two
+    neighbouring colour regions (after smoothing the regions by majority vote, `smooth` px),
+    then given width WI. Lines shorter than minlen px are dropped."""
     H_,W_=L.shape
     fpm=(L>0).astype(np.uint8)
     cs,_=cv2.findContours(fpm,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
@@ -394,6 +442,8 @@ def _crack_chains(part):
     a=P[:,:-1]; b=P[:,1:]; ys,xs=np.nonzero(a!=b)        # vertical cracks
     for y,x in zip(ys,xs): G.add_edge((x+1,y),(x+1,y+1),pair=(min(a[y,x],b[y,x]),max(a[y,x],b[y,x])))
     def is_node(v):
+        """A junction of the boundary map: not exactly 2 edges, or where the pair of regions on
+        either side changes."""
         if G.degree(v)!=2: return True
         p=[G.edges[v,w]['pair'] for w in G[v]]; return p[0]!=p[1]
     nodes=set(v for v in G if is_node(v)); chains=[]; seen=set()
@@ -412,6 +462,11 @@ def _crack_chains(part):
     return chains
 
 def build4(L,black=6,WO=13.0,WI=10.5,tol=6.0,tol_outer=6.0,smooth=5.0,thr=55,mlim=2.0):
+    """Method 4 - exact boundary map: smooth the colour regions, follow the cracks between
+    pixels of different regions (_crack_chains) so every boundary closes up, keep only
+    boundaries that have black paint on them, fit each with curves and turn the network into
+    closed colour areas, each pulled back WI/2 from its lines. Also returns the region map
+    and lines, which build5 reuses."""
     from shapely.ops import polygonize, unary_union as UU
     from scipy import ndimage as ndi
     fill=ndi.binary_fill_holes(L>0); L=L.copy(); L[fill&(L==0)]=black      # unknown pixels inside the art count as line
@@ -472,6 +527,8 @@ def build4(L,black=6,WO=13.0,WI=10.5,tol=6.0,tol_outer=6.0,smooth=5.0,thr=55,mli
     return dict(S=S,I=I,black=blackg,cols=cols,nseg=len(segs),npieces=npieces,nlines=len(lines),part=part,lines=lines,regcol=regcol)
 
 def _odir(P,end,k=20):
+    """Unit direction pointing OUT of polyline P at its start (end=0) or end (end=1), measured
+    over k points."""
     k=min(k,len(P)-1)
     v=(P[0]-P[k]) if end==0 else (P[-1]-P[-1-k]); n=np.linalg.norm(v); return v/n if n else v
 def build5(L,black=6,WO=13.0,WI=10.5,tol=12.0,tol_outer=6.0,smooth=6.0,thr=55,minang=150,ext=8.0,sig=8.0):

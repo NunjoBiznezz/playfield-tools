@@ -90,6 +90,7 @@ def parse_abs(d):
     return out
 
 def write_abs(subs):
+    """Subpaths of segments (as from parse_abs) -> absolute SVG path data 'M..L..C..Z'."""
     s = []
     for sp in subs:
         t = 'M%.2f,%.2f' % tuple(sp[0][0])
@@ -134,6 +135,8 @@ def offset_subpath(sp, d, inside_test):
     return out
 
 def evenodd_poly(d):
+    """SVG path data -> one shapely shape, filled the even-odd way (a path inside another makes
+    a hole)."""
     acc = Polygon()
     for r in path_to_rings(d):
         if len(r) > 2: acc = acc.symmetric_difference(Polygon(r).buffer(0))
@@ -174,8 +177,10 @@ def trim_paths(d):
     toks = re.findall(r'[A-Za-z]|[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?', d)
     i = 0; cmd = None; pos = np.zeros(2); start = np.zeros(2); subs = []; cur = None; lastc = None
     def num():
+        """Next number in the path data."""
         nonlocal i; v = float(toks[i]); i += 1; return v
     def pt(rel):
+        """Next x,y point in the path data (made absolute if the command is relative)."""
         p = np.array([num(), num()]); return p + pos if rel else p
     while i < len(toks):
         if re.match(r'[A-Za-z]', toks[i]): cmd = toks[i]; i += 1
@@ -202,6 +207,7 @@ def trim_paths(d):
     return [sp for sp in subs if sp]
 
 def _bez(g, n=24):
+    """Points along one segment: just its two ends for a line, n+1 points for a cubic."""
     if len(g) == 2: return [g[0], g[1]]
     t = np.linspace(0, 1, n + 1)[:, None]
     return list((1 - t) ** 3 * g[0] + 3 * (1 - t) ** 2 * t * g[1] + 3 * (1 - t) * t * t * g[2] + t ** 3 * g[3])
@@ -329,10 +335,13 @@ def applies(root):
     return bool(paint_layers(root))
 
 def has_centerline(root):
+    """True if the SVG has a centerline layer (by id or name)."""
     return any(g.get('id') == 'centerline' or (g.get(f'{{{INK}}}label') or '').lower().startswith('centerline')
                for g in root.iter(f'{{{SVG_NS}}}g'))
 
 def build_parser():
+    """The command-line options (make_all_stencils.py uses this to pass on only the options this
+    script knows)."""
     ap = argparse.ArgumentParser(description='One stencil per colour layer + area mask, with shared registration marks.')
     ap.add_argument('svg')
     ap.add_argument('--mask-grow', type=float, default=-0.005)
@@ -348,6 +357,10 @@ def build_parser():
     return ap
 
 def main(argv=None):
+    """Make every sheet for one source SVG: read the layers, (with --except-keyline) leave out
+    the keyline parts, place the 3 registration marks clear of the art and the trim lines,
+    then write the area mask (step 1, if there is an area layer) and one stencil per colour,
+    black last."""
     a = build_parser().parse_args(argv)
 
     root = ET.parse(a.svg).getroot()
@@ -469,6 +482,8 @@ def main(argv=None):
                 keep = max(parts, key=lambda q: q.intersection(allg).area)
                 art_region = art_region.intersection(keep)
     def art_side(pt, clear=0.0):
+        """True if point pt is on the artwork side of every trim line and at least `clear` away
+        from all of them."""
         q = Point(pt)
         return art_region.contains(q) and all(t[2].distance(q) >= clear for t in trims)
     marks = [c for c in corners if art_side(c, h + wr)][:3]
@@ -507,6 +522,8 @@ def main(argv=None):
                f'<path fill="none" stroke="#999" stroke-width="0.6" d="{area_d}"/></g>\n') if area_d else ''
 
     def write(step, kind, cut_paths, nodes, note, colour, pieces, with_trims=True, extra=(), with_outline=True):
+        """Write one sheet: cut layer (openings, trim lines, mark windows, extra windows), pen
+        layer (mark crosses) and, if wanted, the reference outline. Prints its node count."""
         fn = os.path.join(outdir, f'{stem} - {step} {kind}.svg')
         cut = '\n'.join(f'<path id="{pid}" fill="{colour}" fill-opacity="0.45" fill-rule="evenodd" stroke="#000" stroke-width="0.8" d="{d}"/>'
                         for pid, d in cut_paths)

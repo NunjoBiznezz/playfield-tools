@@ -1,4 +1,21 @@
-"""Serialise shapely geometry to SVG paths using true circular arcs where the boundary lies on known circles."""
+"""arcpath.py - write shapely shapes as SVG paths, using true arcs where they lie on known circles
+==============================================================================================
+
+Helper library (not run on its own). When a shape has been built with shapely (outlines,
+bands, unions ...) its edges come out as hundreds of tiny straight segments. For the
+cutter we want simple paths, and where the edge is really part of a circle (a ring, a
+round end) that bit should be ONE arc. Given the list of circles the shape was built
+from, pathd() walks each outline, recognises the runs of points that sit on one of
+those circles and writes them as SVG "A" arcs; everything else becomes a few straight
+lines (or Bezier curves, if CURVES is set).
+
+    import arcpath
+    d = arcpath.pathd(shape, circles=[(cx, cy, r), ...])   # -> SVG path "d" string
+    arcpath.count(d)                                         # how many nodes it has
+
+Note: it imports ring_segs from lanes/build.py, a game-specific helper, so it only
+works when run from a folder that has lanes/build.py in it.
+"""
 import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import numpy as np, sys
 import curvefit as CF
@@ -7,6 +24,10 @@ sys.path.insert(0,'lanes')
 from build import ring_segs
 from shapely import affinity
 def _ring(coords,circles,tol=0.35,dx=0,dy=0,eps=0.3):
+    """One closed outline -> SVG path data. Runs of points lying on one of `circles` (within
+    `tol` px) become arcs; the rest become simplified straight lines (or Beziers if CURVES is
+    set). dx, dy shift the output. Returns None if no part of the outline lies on any circle
+    (the caller then uses plain segments)."""
     P=np.asarray(coords)[:-1]; n=len(P)
     C=np.array(circles,float)
     on=np.abs(np.hypot(P[:,None,0]-C[None,:,0],P[:,None,1]-C[None,:,1])-C[None,:,2])<tol   # n x k membership
@@ -48,8 +69,11 @@ def _ring(coords,circles,tol=0.35,dx=0,dy=0,eps=0.3):
         s=i
     return out+'Z'
 def _turn(seg,cx,cy):
+    """Total angle (radians, signed) that the points in `seg` sweep round the centre (cx, cy)."""
     a=np.unwrap(np.arctan2(seg[:,1]-cy,seg[:,0]-cx)); return a[-1]-a[0]
 def pathd(g,circles,dx=0,dy=0,minarea=2,eps=0.3):
+    """Shapely Polygon/MultiPolygon -> SVG path data for all its outlines and holes, with true
+    arcs on the given circles. Pieces smaller than `minarea` are dropped."""
     gs=[g] if g.geom_type=='Polygon' else [q for q in getattr(g,'geoms',[]) if q.geom_type=='Polygon']
     out=[]
     for q in gs:
@@ -63,4 +87,5 @@ def pathd(g,circles,dx=0,dy=0,minarea=2,eps=0.3):
             out.append(d)
     return ' '.join(out)
 def count(d):
+    """Number of nodes (A, C and L commands) in SVG path data `d`."""
     import re; return len(re.findall(r'[ACL]',d))

@@ -27,15 +27,10 @@ SETUP (macOS)
 
        brew install tesseract poppler
 
-2) Install the Python packages (Python 3.9+ recommended). Easiest is a
-   virtual environment so you don't touch your system Python:
-
-       python3 -m venv ~/ocr-venv
-       source ~/ocr-venv/bin/activate
-       pip install pillow pytesseract reportlab pypdf pikepdf
-
-   (Every time you want to run the script in a new terminal window, run
-   `source ~/ocr-venv/bin/activate` first.)
+2) The Python packages (pillow pytesseract reportlab pypdf pikepdf) are in
+   the shared playfield environment, ~/.venvs/playfield-tools - run
+   `bash scripts/setup.sh` once if it isn't there yet. The script switches to
+   that environment by itself, so there is nothing to activate.
 
 --------------------------------------------------------------------------
 USAGE
@@ -121,6 +116,8 @@ def inverse_map(px, py, r, W, H):
 
 
 def rotate_image(im, r):
+    """The image turned by r degrees (0, 90, 180 or 270, counter-clockwise; exact, no
+    resampling)."""
     if r == 0:
         return im
     elif r == 90:
@@ -172,6 +169,8 @@ def ocr_one_orientation(im, r, lang, min_conf):
 
 
 def iou(a, b):
+    """How much two word boxes overlap: overlap area / the smaller box's area (0 = apart, 1 =
+    one inside the other)."""
     ax0, ay0, ax1, ay1 = a["x0"], a["y0"], a["x1"], a["y1"]
     bx0, by0, bx1, by1 = b["x0"], b["y0"], b["x1"], b["y1"]
     ix0, iy0 = max(ax0, bx0), max(ay0, by0)
@@ -202,6 +201,8 @@ def dedupe_words(words):
 # ---------------------------------------------------------------------------
 
 def normalize_boxes(input_pdf, normalized_pdf):
+    """Copy the PDF with each page's MediaBox set to its CropBox (and Trim/Bleed/Art boxes
+    removed), so the page is rasterised exactly as it is seen."""
     pdf = pikepdf.open(input_pdf)
     for page in pdf.pages:
         crop = page.get("/CropBox")
@@ -219,6 +220,8 @@ def normalize_boxes(input_pdf, normalized_pdf):
 # ---------------------------------------------------------------------------
 
 def process_page(png_path, dpi, lang, min_conf, jpeg_quality, single_orientation, page_pdf_path):
+    """OCR one page image and write it as a one-page PDF: the scan as a JPEG background, plus
+    every word found as invisible text at the right place, size and angle."""
     im = Image.open(png_path).convert("L")  # grayscale for OCR: lighter/faster
     W, H = im.size
 
@@ -276,11 +279,14 @@ def process_page(png_path, dpi, lang, min_conf, jpeg_quality, single_orientation
 
 
 def natural_page_number(path):
+    """Page number from a pdftoppm file name like 'page-12.png' (so page 10 sorts after page 9)."""
     m = re.search(r"-(\d+)\.png$", path)
     return int(m.group(1)) if m else 0
 
 
 def main():
+    """Command line: normalise the PDF, rasterise every page with pdftoppm, OCR each page, then
+    join the pages into the output PDF."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("input_pdf")
     ap.add_argument("output_pdf")

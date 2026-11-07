@@ -21,7 +21,7 @@ Modes
 Output goes next to each file as <name>_scaled.<ext>; originals are untouched
 (use --suffix "" --overwrite to replace them).
 
-Setup (once):  python3 -m pip install pillow
+Setup: nothing extra - Pillow is in the shared environment (bash scripts/setup.sh).
 """
 
 import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
@@ -35,6 +35,7 @@ Image.MAX_IMAGE_PIXELS = None
 
 
 def main():
+    """Command line: work out the scale factor, then write a corrected copy of each image."""
     ap = argparse.ArgumentParser(description="Rescale images by a correction factor.")
     ap.add_argument("images", nargs="+")
     ap.add_argument("--measured", type=float, default=10.1875,

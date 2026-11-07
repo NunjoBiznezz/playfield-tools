@@ -1,3 +1,15 @@
+"""multiorient_ocr.py - LEGACY: first try at OCR'ing a schematic in four orientations
+================================================================================
+
+Superseded by ocr_schematic.py - use that. Kept for reference only; it will not run
+as-is (SRC and the output path are hard-coded to an old cloud session folder).
+
+What it did: ran Tesseract on page-1.png at 0, 90, 180 and 270 degrees in one go
+(so sideways labels on wires are read too), kept words with confidence >= 55, mapped
+each word's box back to the unrotated page, and saved them all to words.json.
+Doing all four rotations in one process used too much memory/time, so it was split
+into ocr_one_rotation.py (one rotation per run) + build_final.py.
+"""
 import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import sys, json
 from PIL import Image
@@ -39,6 +51,7 @@ for r, rim in rotations.items():
         rx0, ry0, rx1, ry1 = x, y, x + w, y + h
         # map corners back to original 0-degree pixel space using inverse formulas
         def inv(px, py):
+            """Map a point in the rotated image back to the unrotated page's pixel coordinates."""
             if r == 0:
                 return px, py
             elif r == 90:

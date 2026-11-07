@@ -25,6 +25,8 @@ from pathlib import Path
 
 
 def extract_images(b2s_path: Path, output_dir: Path) -> int:
+    """Write every image stored in the .directb2s file into output_dir as '<table>_<tag>.png'
+    (or .bin if it isn't a PNG). Returns how many were saved."""
     tree = ET.parse(b2s_path)
     root = tree.getroot()
 
@@ -55,6 +57,7 @@ def extract_images(b2s_path: Path, output_dir: Path) -> int:
 
 
 def main():
+    """Command line: check the arguments, pick the output folder and extract."""
     if len(sys.argv) < 2:
         print("Usage: python3 extract_b2s_images.py path/to/table.directb2s [output_dir]")
         sys.exit(1)

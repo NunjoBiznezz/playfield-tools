@@ -28,8 +28,9 @@ KEYS IN THE WINDOW
   click  = place point      u = undo last point      r = reset
   ENTER  = accept           s = skip this photo      q / ESC = quit
 
-SETUP (once, in Terminal on your Mac)
-  python3 -m pip install opencv-python numpy pillow
+SETUP
+  Nothing extra - OpenCV, numpy and Pillow are in the shared environment
+  (~/.venvs/playfield-tools; bash scripts/setup.sh makes it once).
 
 EXAMPLES
   python3 stencil_rectify.py photo.jpg
@@ -53,6 +54,8 @@ MAX_OUTPUT_PX = 20000  # safety cap on output size
 
 # ---------------------------------------------------------------- point picking
 def pick_points(img, title):
+    """Show the photo in a window and let the user click 4 grid crossings (with a magnifier).
+    Returns the 4 points in full-size pixels, or None if the photo was skipped ('s')."""
     h, w = img.shape[:2]
     scale = min(1.0, 1200 / max(w, h))
     base = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
@@ -60,6 +63,7 @@ def pick_points(img, title):
     mouse = [0, 0]
 
     def on_mouse(event, x, y, flags, param):
+        """Track the cursor; a left click adds a point (up to 4)."""
         mouse[0], mouse[1] = x, y
         if event == cv2.EVENT_LBUTTONDOWN and len(pts) < 4:
             pts.append((x / scale, y / scale))
@@ -126,6 +130,8 @@ def pick_points(img, title):
 
 
 def ask_squares(default):
+    """Ask in Terminal how many grid squares across x down the clicked rectangle is. Returns
+    (across, down, text typed)."""
     hint = f" [{default}]" if default else ""
     while True:
         s = input(f"  Squares across x down for that rectangle (e.g. 30x20){hint}: ").strip().lower()
@@ -152,6 +158,10 @@ def order_corners(pts):
 
 
 def rectify(img, src_pts, nx, ny, grid_in, dpi, crop, margin_in):
+    """Straighten the photo from 4 clicked grid points: the rectangle nx x ny squares becomes
+    exactly nx*grid_in x ny*grid_in inches at `dpi`. Keeps the whole photo, or (crop) just
+    the rectangle + margin. Returns (image, where grid point 0,0 is in it, pixels per
+    square)."""
     sq = grid_in * dpi                      # pixels per grid square
     W, H = nx * sq, ny * sq
     src = np.float32(order_corners(src_pts))
@@ -205,6 +215,7 @@ def _fit_grid(pts):
     spacing = np.median(d.min(1))
 
     def find(p):
+        """Index of the detected point within a quarter square of p, or None."""
         k = np.hypot(*(pts - p).T)
         i = k.argmin()
         return i if k[i] < 0.25 * spacing else None
@@ -261,6 +272,9 @@ def auto_grid(img):
 
 
 def rectify_auto(img, Hc, grid_in, dpi):
+    """Straighten the photo using the automatically fitted grid, keeping only the part the photo
+    fully covers. Returns (image, grid origin, pixels per square) or None if it would be
+    empty/too big."""
     sq = grid_in * dpi
     h, w = img.shape[:2]
     c = cv2.perspectiveTransform(np.float32([[0, 0], [w, 0], [w, h], [0, h]]).reshape(-1, 1, 2),
@@ -278,6 +292,7 @@ def rectify_auto(img, Hc, grid_in, dpi):
 
 
 def draw_check(img, origin, sq):
+    """Copy of the image with a red line on every grid line, to check the result by eye."""
     chk = img.copy()
     t = max(1, int(sq // 60))  # line thickness scales with resolution
     h, w = chk.shape[:2]
@@ -296,11 +311,14 @@ def draw_check(img, origin, sq):
 
 
 def save_png(bgr, path, dpi):
+    """Save an OpenCV (BGR) image as a PNG with the DPI stored, so it imports at true size."""
     Image.fromarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)).save(path, dpi=(dpi, dpi))
 
 
 # ---------------------------------------------------------------- main
 def main():
+    """Command line: for each photo try the automatic grid, else saved or clicked points, then
+    save the rectified and check images."""
     ap = argparse.ArgumentParser(description="Straighten and scale graph-paper photos for stencils.")
     ap.add_argument("images", nargs="+")
     ap.add_argument("--grid", type=float, default=0.5, help="grid spacing in inches (default 0.5)")

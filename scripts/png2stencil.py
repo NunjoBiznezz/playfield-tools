@@ -2,8 +2,8 @@
 """
 png2stencil.py - turn flat-colour artwork (PNG) into clean SVG cut files, one per paint colour.
 
-Setup (once):
-    pip3 install pillow numpy opencv-python potracer
+Setup: nothing extra - the packages are in the shared environment
+    (~/.venvs/playfield-tools; bash scripts/setup.sh makes it once).
 
 Use:
     python3 png2stencil.py card_value_100_right.png
@@ -69,6 +69,8 @@ def find_palette(rgb, fg, max_colors, min_share):
 
 
 def colour_name(c, used):
+    """A name for an RGB colour: the nearest named paint colour if it is close, otherwise its
+    hex code; numbered (red2, red3 ...) if that name is already used."""
     name = min(NAMED, key=lambda n: sum((a - b) ** 2 for a, b in zip(NAMED[n], c)))
     if sum((a - b) ** 2 for a, b in zip(NAMED[name], c)) > 70 ** 2:
         name = '%02x%02x%02x' % c
@@ -160,6 +162,9 @@ def write_svg(path, W, H, dpi, layers):
 
 
 def process(path, a):
+    """Do one PNG: find its colours, label every pixel, optionally fit round holes, let colours
+    run --grow under the dark outline colour, trace each colour and write the SVGs and
+    preview."""
     log = print
     img = Image.open(path)
     dpi = a.dpi or float((img.info.get('dpi') or (0, 0))[0]) or 0
@@ -220,6 +225,7 @@ def process(path, a):
 
 
 def main():
+    """Command line: expand the wildcards and process each image."""
     p = argparse.ArgumentParser(description='Flat-colour PNG to per-colour SVG stencil files.')
     p.add_argument('images', nargs='+', help='PNG files (wildcards are fine)')
     p.add_argument('--dpi', type=float, help='resolution of the image; default is read from the file')

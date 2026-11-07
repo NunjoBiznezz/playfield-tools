@@ -1,10 +1,33 @@
-"""Fit a closed polyline with few cubic Beziers: sharp corners kept (and sharpened), smooth sweeps as single curves."""
+"""curvefit.py - fit a traced outline with a few smooth Bezier curves
+==================================================================
+
+Helper library (not run on its own) used by lineart.py and arcpath.py.
+
+A traced outline is a long list of pixel points. fit_closed() turns a closed one into
+a short list of cubic Bezier curves:
+  * sharp corners are found (where the direction turns by more than `thr` degrees)
+    and kept as corners - with sharpen=True they are moved to where the two
+    neighbouring sides meet, so worn/rounded tips come out as clean points;
+  * between corners each smooth sweep becomes as few curves as possible - more are
+    added only where the fit is further than `tol` pixels from the trace.
+fit_open() does the same for an open line, and to_d() writes the result as SVG path data.
+
+Each curve is a tuple of 4 points (start, control 1, control 2, end), all numpy arrays.
+
+    import curvefit as CF
+    segs = CF.fit_closed(points, tol=1.5, sharpen=True)
+    d = CF.to_d(segs)              # "M..C..C..Z"
+"""
 import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import numpy as np
 def _resample(P,step=1.0):
+    """Closed outline -> points spaced evenly every `step` pixels along it."""
     P=np.vstack([P,P[:1]]); d=np.r_[0,np.cumsum(np.hypot(*np.diff(P,axis=0).T))]
     t=np.arange(0,d[-1],step); return np.c_[np.interp(t,d,P[:,0]),np.interp(t,d,P[:,1])]
 def _corners(P,k=12,thr=38):
+    """Find sharp corners on an evenly spaced closed outline: points where the direction
+    (measured k points either side) turns by more than `thr` degrees. Corners closer than 20
+    points keep only the sharper one. Returns (corner indices, turn angle at every point)."""
     n=len(P); a=P-np.roll(P,k,0); b=np.roll(P,-k,0)-P
     ang=np.degrees(np.abs(np.arctan2(a[:,0]*b[:,1]-a[:,1]*b[:,0],(a*b).sum(1))))
     c=[i for i in range(n) if ang[i]>thr and ang[i]>=ang[(i-np.arange(1,k+1))%n].max() and ang[i]>ang[(i+np.arange(1,k+1))%n].max()]
@@ -14,6 +37,7 @@ def _corners(P,k=12,thr=38):
         if all(min(abs(i-j),n-abs(i-j))>=20 for j in keep): keep.append(i)
     return sorted(keep),ang
 def _bez(p0,p1,p2,p3,t):
+    """Points on the cubic Bezier p0..p3 at the parameter values in array t (0..1)."""
     t=t[:,None]; return (1-t)**3*p0+3*(1-t)**2*t*p1+3*(1-t)*t*t*p2+t**3*p3
 def _fit(Q,t1,t2,tol,depth=0):
     """Schneider-style fit of points Q with end tangents t1 (out of Q[0]) t2 (into Q[-1], pointing back)."""
@@ -43,8 +67,14 @@ def _fit(Q,t1,t2,tol,depth=0):
     tc=Q[m+1]-Q[m-1]; tc=tc/np.linalg.norm(tc)
     return _fit(Q[:m+1],t1,-tc,tol,depth+1)+_fit(Q[m:],tc,t2,tol,depth+1)
 def _tan(Q,i,dirn,k=6):
+    """Unit direction at point i of Q, looking k points ahead (dirn=+1) or back (dirn=-1)."""
     j=np.clip(i+dirn*k,0,len(Q)-1); v=Q[j]-Q[i]; return v/(np.linalg.norm(v)+1e-9)
 def fit_closed(P,tol=1.5,sharpen=False,thr=38,collapse=True):
+    """Fit a closed outline (list of x,y points) with few cubic Beziers. tol = allowed distance
+    from the trace (px); thr = corner angle (degrees); sharpen = move corners to where the
+    sides meet (clean tips); collapse = also turn blunt/worn tips (two corners close
+    together) into one point and remove tiny leftover curves. Returns a list of (p0, p1, p2,
+    p3) curves."""
     P=_resample(np.asarray(P,float))
     cs,_=_corners(P,thr=thr)
     if sharpen and collapse and len(cs)>=2 and len(P)>400:
@@ -97,6 +127,8 @@ def fit_closed(P,tol=1.5,sharpen=False,thr=38,collapse=True):
     if sharpen and collapse: segs=_kill_tiny(segs)
     return [tuple(c) for c in segs]
 def _kill_tiny(segs,minchord=40):
+    """Remove curves shorter than `minchord` px by joining their neighbours at one point (where
+    the neighbours' directions meet, if that is close), so no tiny slivers are left."""
     changed=True
     while changed and len(segs)>3:
         changed=False
@@ -116,12 +148,15 @@ def _kill_tiny(segs,minchord=40):
                 del segs[i]; changed=True; break
     return segs
 def to_d(segs,dx=0,dy=0):
+    """List of Bezier curves -> closed SVG path data 'M..C..Z', shifted by dx, dy."""
     p=segs[0][0]; s=f'M{p[0]+dx:.2f},{p[1]+dy:.2f}'
     for c in segs:
         p1,p2,p3=c[1],c[2],c[3]
         s+=f'C{p1[0]+dx:.2f},{p1[1]+dy:.2f} {p2[0]+dx:.2f},{p2[1]+dy:.2f} {p3[0]+dx:.2f},{p3[1]+dy:.2f}'
     return s+'Z'
 def fit_open(P,tol=1.5,thr=38):
+    """Fit an open line with few cubic Beziers, split at sharp corners (> thr degrees). Returns
+    a list of curves."""
     P=np.asarray(P,float)
     d=np.r_[0,np.cumsum(np.hypot(*np.diff(P,axis=0).T))]
     if d[-1]<3: return [(P[0],P[0]+(P[-1]-P[0])/3,P[-1]-(P[-1]-P[0])/3,P[-1])]

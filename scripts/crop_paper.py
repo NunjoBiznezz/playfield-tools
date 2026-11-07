@@ -64,6 +64,10 @@ def largest_empty_rect(occ):
     return best[1]
 
 def grid_crop(rgb, spacing, loose, tight=False):
+    """Find the crop box using the graph paper's grid of crosses: fit the grid, mark which grid
+    points show paper, take the biggest block with no paper in it (= the artwork), then trim
+    any plain paper strip left at the edges. `loose` skips that last trim, `tight` trims
+    harder. Returns (x0, y0, x1, y1) in `rgb`'s pixels, or None."""
     pts = detect_crosses(rgb, spacing)
     if len(pts) < 12:
         return None
@@ -127,6 +131,9 @@ def colour_crop(rgb):
     return x, y, x + w, y + h
 
 def find_crop(im, loose, inset_in, dpi, tight=False):
+    """Work out the crop box for one image (on a ~1000 px copy for speed). Tries the grid method
+    first, then the colour method. Returns ((x0, y0, x1, y1) in full-size pixels, how it was
+    found) or (None, reason)."""
     W, H = im.size
     f = 1000 / max(W, H)
     small = np.array(im.convert('RGB').resize((int(W * f), int(H * f)), Image.LANCZOS))
@@ -147,6 +154,8 @@ def find_crop(im, loose, inset_in, dpi, tight=False):
     return (max(0, int(x0 / f)), max(0, int(y0 / f)), min(W, int(x1 / f)), min(H, int(y1 / f))), how
 
 def main():
+    """Command line: crop each image (or every .png in a folder), or with --preview make one
+    contact sheet showing the crops."""
     ap = argparse.ArgumentParser(description="Crop graph paper off rectified photos.")
     ap.add_argument('images', nargs='*')
     ap.add_argument('--preview', action='store_true')

@@ -57,7 +57,7 @@ Options (all in inches)
   --only area|mask|border   make just one of the outputs
   --outdir DIR     where to write (default: _generated in the current directory)
 
-Needs: Python 3.9+, numpy, shapely  (pip install numpy shapely)
+Needs: Python 3.9+, numpy, shapely - all in the shared environment (bash scripts/setup.sh)
 """
 import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import argparse, math, os, re, sys
@@ -73,6 +73,7 @@ K = 0.5522847498               # circle-as-4-cubics constant
 
 # ----------------------------------------------------------------- SVG reading
 def _num_tokens(s):
+    """Split SVG path data into command letters and numbers."""
     return re.findall(r'[MmLlHhVvCcSsQqTtAaZz]|[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?', s)
 
 def _arc_points(p0, rx, ry, phi, fa, fs, p1, n=48):
@@ -92,6 +93,7 @@ def _arc_points(p0, rx, ry, phi, fa, fs, p1, n=48):
     cxp, cyp = co * rx * y1p / ry, -co * ry * x1p / rx
     cx = c * cxp - s * cyp + (x1 + x2) / 2; cy = s * cxp + c * cyp + (y1 + y2) / 2
     def ang(u, v):
+        """Signed angle from vector u to vector v (radians)."""
         a = math.atan2(u[0] * v[1] - u[1] * v[0], u[0] * v[0] + u[1] * v[1]); return a
     t1 = ang((1, 0), ((x1p - cxp) / rx, (y1p - cyp) / ry))
     dt = ang(((x1p - cxp) / rx, (y1p - cyp) / ry), ((-x1p - cxp) / rx, (-y1p - cyp) / ry))
@@ -105,6 +107,7 @@ def _arc_points(p0, rx, ry, phi, fa, fs, p1, n=48):
     return out
 
 def _bez(p0, p1, p2, p3, n):
+    """n points along the cubic Bezier p0..p3 (not including p0)."""
     t = np.linspace(0, 1, n + 1)[1:, None]
     p0, p1, p2, p3 = map(np.asarray, (p0, p1, p2, p3))
     return list(map(tuple, (1 - t)**3 * p0 + 3 * (1 - t)**2 * t * p1 + 3 * (1 - t) * t**2 * p2 + t**3 * p3))
@@ -114,8 +117,11 @@ def path_to_rings(d, step=0.5):
     tok = _num_tokens(d); i = 0; cmd = None
     rings = []; cur = []; pos = (0.0, 0.0); start = (0.0, 0.0); lastc = None; lastq = None
     def nxt():
+        """Next number in the path data."""
         nonlocal i; v = float(tok[i]); i += 1; return v
     def seglen(*pts):
+        """Length of the polyline through the given points (used to decide how finely to sample
+        a curve)."""
         return sum(math.dist(pts[k], pts[k + 1]) for k in range(len(pts) - 1))
     while i < len(tok):
         if re.match(r'[A-Za-z]', tok[i]): cmd = tok[i]; i += 1
@@ -153,6 +159,8 @@ def path_to_rings(d, step=0.5):
     return [r for r in rings if len(r) > 2]
 
 def parse_transform(t):
+    """SVG transform attribute (matrix/translate/scale/rotate, in any combination) -> 3x3
+    matrix."""
     M = np.eye(3)
     for name, args in re.findall(r'(\w+)\s*\(([^)]*)\)', t or ''):
         a = [float(x) for x in re.findall(r'[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?', args)]
@@ -189,6 +197,8 @@ def shapes_in(elem, M=np.eye(3)):
     for ch in elem: yield from shapes_in(ch, M)
 
 def find_layer(root, name):
+    """The first <g> whose id is `name` or whose Inkscape name starts with it (lower case); None
+    if there is none."""
     for g in root.iter(f'{{{SVG_NS}}}g'):
         if g.get('id') == name or (g.get(f'{{{INK}}}label') or '').lower().startswith(name): return g
     return None
@@ -204,11 +214,14 @@ def layer_matrix(root, target):
 
 # ----------------------------------------------------------------- geometry
 def fitcircle(P):
+    """Best-fit circle through points P (least squares). Returns (cx, cy, r, largest distance of
+    any point from that circle)."""
     A = np.c_[2 * P, np.ones(len(P))]; b = (P**2).sum(1)
     c = np.linalg.lstsq(A, b, rcond=None)[0]; cx, cy = c[:2]; r = math.sqrt(max(1e-12, c[2] + cx * cx + cy * cy))
     return cx, cy, r, float(np.abs(np.hypot(P[:, 0] - cx, P[:, 1] - cy) - r).max())
 
 def circ_d(cx, cy, r):
+    """SVG path data for a true 4-node circle (4 cubic curves) at (cx, cy) with radius r."""
     k = K * r
     return (f'M{cx + r:.2f},{cy:.2f}C{cx + r:.2f},{cy + k:.2f} {cx + k:.2f},{cy + r:.2f} {cx:.2f},{cy + r:.2f}'
             f'C{cx - k:.2f},{cy + r:.2f} {cx - r:.2f},{cy + k:.2f} {cx - r:.2f},{cy:.2f}'
@@ -264,6 +277,8 @@ def ring_to_d(coords, tol=0.25):
     return ''.join(out), nodes
 
 def geom_to_d(g):
+    """Shapely shape -> SVG path data for all its outlines and holes (via ring_to_d), and the
+    total node count. Pieces under 1 unit^2 are dropped."""
     parts = []; nodes = 0
     for poly in getattr(g, 'geoms', [g]):
         if poly.geom_type != 'Polygon' or poly.area < 1: continue
@@ -272,6 +287,8 @@ def geom_to_d(g):
     return ' '.join(parts), nodes
 
 def buf(g, d):
+    """Grow (d > 0) or shrink (d < 0) a shape by d units, with round corners; d = 0 returns it
+    unchanged."""
     return g.buffer(d, join_style=1, quad_segs=64) if abs(d) > 1e-9 else g
 
 def band_of(pg, half):
@@ -289,6 +306,8 @@ def applies(root):
     return cl is not None and any(e.get('d') for e in cl.iter(f'{{{SVG_NS}}}path'))
 
 def build_parser():
+    """The command-line options (make_all_stencils.py uses this to pass on only the options this
+    script knows)."""
     ap = argparse.ArgumentParser(description='Make area stencil, area mask and border stencil from a centerline SVG.')
     ap.add_argument('svg')
     ap.add_argument('--width', type=float)
@@ -303,6 +322,8 @@ def build_parser():
     return ap
 
 def main(argv=None):
+    """Make the area stencil, area mask and border stencil for one source SVG: read the centre
+    lines and the holes, pick the alignment windows, build each shape and write it."""
     a = build_parser().parse_args(argv)
 
     ET.register_namespace('', SVG_NS); ET.register_namespace('inkscape', INK)
@@ -383,6 +404,8 @@ def main(argv=None):
     ref = re.sub(r'label="[^"]*"', 'label="holes (reference - no cut)"', ref, count=1)
 
     def write(kind, d, nodes, note, colour):
+        """Write one output file (layer 'cut' with the path + the holes reference layer) and
+        print its node count."""
         fn = os.path.join(outdir, f'{stem} - {kind}.svg')
         svg = (f'<svg xmlns="{SVG_NS}" xmlns:inkscape="{INK}" width="{wid}" height="{hei}" viewBox="{vb}">\n'
                f'<!-- {stem} - {kind}. Generated by make_stencils.py. 300 units = 1 in. {note} '

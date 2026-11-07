@@ -1,3 +1,16 @@
+"""ocr_one_rotation.py - LEGACY: OCR one rotation of a schematic page
+==================================================================
+
+Superseded by ocr_schematic.py - use that. Kept for reference only; it will not run
+as-is (SRC and OUTDIR are hard-coded to an old cloud session folder).
+
+Usage then:  python3 ocr_one_rotation.py 90      (one of 0, 90, 180, 270)
+
+Rotates page-1.png by the given angle, runs Tesseract on it (sparse-text mode, 140 s
+time limit), keeps words with confidence >= 55 and at least 2 characters, maps each
+word's box back to the unrotated page's pixel coordinates, and writes
+words_r<angle>.json. Run it once per angle, then build_final.py merges the four.
+"""
 import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import sys, json, gc, time, traceback
 from PIL import Image
@@ -51,6 +64,7 @@ for i in range(n):
     rx0, ry0, rx1, ry1 = x, y, x + w, y + h
 
     def inv(px, py):
+        """Map a point in the rotated image back to the unrotated page's pixel coordinates."""
         if r == 0:
             return px, py
         elif r == 90:

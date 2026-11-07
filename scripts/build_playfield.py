@@ -85,12 +85,14 @@ TOK = re.compile(r"[MmLlHhVvCcSsQqTtAaZz]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d
 NARGS = dict(M=2, L=2, H=1, V=1, C=6, S=4, Q=4, T=2, A=7, Z=0)
 
 def fmt(v):
+    """Number -> text with 2 decimals for the SVG (never '-0.00')."""
     s = "%.2f" % v
     return "0.00" if s == "-0.00" else s
 
 def transform_d(d, ox, oy, deg):
     """Move/rotate a path: p' = R(deg) p + (ox, oy). Output absolute commands."""
     a = math.radians(deg); c, s = math.cos(a), math.sin(a)
+    # Rotate point (x, y) by `deg` about the piece's 0,0, then move it to (ox, oy).
     def P(x, y): return (c * x - s * y + ox, s * x + c * y + oy)
     toks = TOK.findall(d); i = 0; out = []
     cx = cy = sx = sy = 0.0; cmd = None
@@ -128,10 +130,15 @@ def transform_d(d, ox, oy, deg):
     return "".join(out)
 
 # ---------------------------------------------------------------- piece reading
+# An element's Inkscape layer name, or its id if it has none.
 def label(e): return e.get("{%s}label" % INK) or e.get("id") or ""
+# True if the element is an Inkscape layer (a <g> with groupmode="layer").
 def is_layer(e): return e.tag == "{%s}g" % SVG and e.get("{%s}groupmode" % INK) == "layer"
 
 def layer_kind(lab):
+    """Which master-file layer a piece's layer belongs in, from its name: 'holes',
+    'centerlines', 'cream', 'inserts', a paint colour from colour_order, or None
+    (reference/photo layers etc. are not copied)."""
     l = lab.lower()
     if "hole" in l: return "holes"
     if "centerline" in l or "centre" in l: return "centerlines"
@@ -151,6 +158,7 @@ def copy_moved(e, ox, oy, deg, prefix):
     return n
 
 def read_piece(path):
+    """Read a piece SVG -> {layer kind: [its layer elements]} (see layer_kind)."""
     root = ET.parse(path).getroot()
     layers = {}
     for lay in [e for e in root.iter() if is_layer(e)]:
@@ -160,16 +168,23 @@ def read_piece(path):
 
 # ---------------------------------------------------------------- build
 def layer(parent, lid, lab, **kw):
+    """Add a new Inkscape layer (id `lid`, name `lab`) to `parent`; extra keyword args become
+    attributes."""
     g = ET.SubElement(parent, "{%s}g" % SVG, {"id": lid, "{%s}groupmode" % INK: "layer", "{%s}label" % INK: lab})
     for k, v in kw.items(): g.set(k, v)
     return g
 
 def path(parent, d, style, **kw):
+    """Add a <path> with path data `d` and CSS `style` to `parent`; extra keyword args become
+    attributes."""
     p = ET.SubElement(parent, "{%s}path" % SVG, {"d": d, "style": style}); [p.set(k, v) for k, v in kw.items()]; return p
 
+# Make text safe for an SVG id: runs of anything but letters/digits become '-'.
 def slug(s): return re.sub(r"[^A-Za-z0-9]+", "-", s).strip("-")
 
 def main():
+    """Build the master playfield SVG: board outline and grid, then every piece from
+    placements.csv moved into place layer by layer, then control points and the hole list."""
     W, H = BOARD_W * U, BOARD_H * U
     svg = ET.Element("{%s}svg" % SVG, {"width": "%.4fin" % BOARD_W, "height": "%.4fin" % BOARD_H,
                                        "viewBox": "0 0 %s %s" % (fmt(W), fmt(H)), "version": "1.1"})
@@ -222,6 +237,8 @@ def main():
 
     ctl = layer(svg, "controls", "controls (reference)")
     def cross(g, x, y, name, colour, size=0.12):
+        """Draw a small + at board position (x, y) inches (Y measured up from the bottom of the
+        wood)."""
         X, Y = x * U, (BOARD_H - y) * U; s = size * U
         path(g, "M%s,%sH%sM%s,%sV%s" % (fmt(X - s), fmt(Y), fmt(X + s), fmt(X), fmt(Y - s), fmt(Y + s)),
              "fill:none;stroke:%s;stroke-width:2" % colour, **{"{%s}label" % INK: name})

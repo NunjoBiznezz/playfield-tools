@@ -31,6 +31,7 @@ import sys
 
 
 def main():
+    """Command line: list the renames and deletes, ask (unless -y / -n), then do them."""
     ap = argparse.ArgumentParser(description="Replace NAME.png with NAME_rectified.png and remove NAME_check.png files.")
     ap.add_argument("folder", nargs="?", default=".", help="folder to clean (default: current folder)")
     ap.add_argument("-y", "--yes", action="store_true", help="don't ask for confirmation")

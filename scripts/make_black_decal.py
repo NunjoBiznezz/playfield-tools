@@ -29,9 +29,11 @@ U = 300.0
 K = 0.5522847498
 
 def layers(root):
+    """All Inkscape layers in the SVG."""
     return [g for g in root.iter('{%s}g' % SVG) if g.get(GM) == 'layer']
 
 def is_black(g):
+    """True if this layer is the black layer (id 'black' or a name starting with 'black')."""
     return g.get('id') == 'black' or (g.get(LB) or '').strip().lower().startswith('black')
 
 TOK = re.compile(r'[MmLlHhVvCcSsQqTtAaZz]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?')
@@ -97,9 +99,12 @@ def path_points(d):
     return pts
 
 def count_nodes(d):
+    """Number of nodes in SVG path data (every drawing command except Z)."""
     return sum(1 for c in re.findall(r'[A-Za-z]', d) if c not in 'Zz')
 
 def recolour(el):
+    """Set every fill and stroke under `el` (attributes and style) to pure black #000000,
+    leaving 'none' alone."""
     for e in el.iter():
         for k in ('fill', 'stroke'):
             v = e.get(k)
@@ -110,6 +115,8 @@ def recolour(el):
             e.set('style', re.sub(r'(fill|stroke)\s*:\s*(?!none)[^;]+', r'\1:#000000', st))
 
 def rounded_rect(x0, y0, x1, y1, r):
+    """SVG path data for a rectangle x0,y0 - x1,y1 with corners of radius r: 4 lines + 4 one-
+    curve corners (8 nodes)."""
     c = r * K
     f = lambda v: ('%.2f' % v).rstrip('0').rstrip('.')
     p = [('M', x0 + r, y0), ('L', x1 - r, y0), ('C', x1 - r + c, y0, x1, y0 + r - c, x1, y0 + r),
@@ -119,6 +126,8 @@ def rounded_rect(x0, y0, x1, y1, r):
     return ' '.join(s[0] + ' ' + ' '.join(f(v) for v in s[1:]) for s in p) + ' Z'
 
 def make(src, outdir, margin_in):
+    """Make the black decal file for one piece. Returns (output path, summary) or (None, reason
+    skipped)."""
     tree = ET.parse(src); root = tree.getroot()
     blacks = [g for g in layers(root) if is_black(g)]
     if not blacks:
@@ -159,6 +168,8 @@ def make(src, outdir, margin_in):
     return out, 'black %d nodes, cut 8 nodes, decal %.2f x %.2fin' % (nodes, (x1 - x0) / U, (y1 - y0) / U)
 
 def main():
+    """Command line: make a decal file for each named piece, or for every piece in stencils/
+    with a black layer."""
     base = os.getcwd()
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('files', nargs='*')

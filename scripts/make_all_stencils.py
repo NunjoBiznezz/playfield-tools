@@ -64,6 +64,8 @@ def run_game_step(step):
 
 
 def not_a_source(name):
+    """If the file name matches a 'not_sources' pattern in playfield.json, return the reason it
+    is skipped; else None."""
     for pat, why in NOT_SOURCES.items():
         if fnmatch.fnmatch(name, pat): return why
     return None
@@ -104,6 +106,9 @@ def options_for(gen, extra):
 
 
 def main(argv=None):
+    """Command line: collect the source SVGs, then for each one remove its old sheets and run
+    the generators it needs; then run the game-only steps; print a summary. Exits with status
+    1 if anything failed."""
     ap = argparse.ArgumentParser(description='Make every stencil a source SVG needs (or every SVG in stencils/).')
     ap.add_argument('svgs', nargs='*', help='source SVGs or folders (default: stencils/)')
     ap.add_argument('--outdir', help='where to write (default: _generated in the current folder)')

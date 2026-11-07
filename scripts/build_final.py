@@ -1,3 +1,19 @@
+"""build_final.py - LEGACY: last step of an early "OCR a schematic" experiment
+==========================================================================
+
+Superseded by ocr_schematic.py, which does the whole job in one command - use that.
+Kept for reference only; it will not run as-is.
+
+What it did: the Williams 1973 Gulfstream schematic was OCR'd four times, once per
+rotation (ocr_one_rotation.py 0 / 90 / 180 / 270, which wrote words_r0.json ...
+words_r270.json). This script merged those four word lists, dropped duplicate
+readings of the same spot (the highest-confidence one wins), and wrote final.pdf:
+the scanned page as a background image with invisible, searchable text laid over it
+at the right position and angle.
+
+Why it won't run: OUTDIR is a hard-coded folder from an old cloud session
+(/sessions/kind-amazing-hopper/...), not a folder on the Mac.
+"""
 import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__))); import use_venv  # shared Python environment
 import json, time
 from PIL import Image
@@ -24,6 +40,8 @@ print("total candidate words:", len(all_words))
 all_words.sort(key=lambda w: -w["conf"])
 
 def iou(a, b):
+    """How much two word boxes overlap: overlap area / the smaller box's area (0 = apart, 1 =
+    one inside the other)."""
     ax0, ay0, ax1, ay1 = a["x0"], a["y0"], a["x1"], a["y1"]
     bx0, by0, bx1, by1 = b["x0"], b["y0"], b["x1"], b["y1"]
     ix0, iy0 = max(ax0, bx0), max(ay0, by0)
