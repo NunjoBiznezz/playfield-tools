@@ -155,3 +155,19 @@ Options (inches): `--mask-grow -0.005`, `--mark-offset 0.20`, `--mark-size 0.25`
 
 ## Trim lines (layer "trim (cut only)" in the source)
 Cut-only lines for trimming the film where a piece meets a neighbour. Draw them in the source SVG in a layer whose label starts with "trim", one path per line. A trim line can be straight, a polyline (e.g. the two edges of the ADVANCE CARD banner notch on the UL/UR pop bumpers) or curved (e.g. the arc of the CC pop bumper circle on UL/UR); lines, curves and arcs, absolute or relative coordinates, as Inkscape writes them. make_layer_stencils.py cuts each path exactly as drawn, runs its two open ends on to the sheet edges in the same shape (a straight end carries on straight; a curved end carries on round the circle it lies on, so the CC bumper arc becomes one smooth circle edge to edge), adds it to the "cut" layer of every sheet as `trim-line-N` (blue stroke, never painted), and reports whether it crosses any artwork (running along an art edge is fine). The 3 registration marks stay on the artwork side of every trim line: the corners are used when they are clear, otherwise the marks move along the sheet edges (as far apart as possible, triangle kept lopsided so a sheet can't go on flipped) and the script prints where they went. build_playfield.py ignores the trim layer. If you move a trim line in Inkscape, keep it free of transforms (no transform on the layer or path).
+
+## make_black_decal.py (run with decals.sh) - black-only waterslide decals
+```
+cd ~/Documents/Pinball/Williams/Lady\ Luck
+bash scripts/decals.sh                                # every piece in stencils/ with a black layer
+bash scripts/decals.sh "stencils/UL queen lane.svg"   # just one; --margin 0.08 for a wider film edge
+```
+For printing the black line art and lettering on clear laser decal film (Koala Laser Clear,
+Brother HL-4150CDN), to go on top of colours painted through the stencils. Writes
+`_generated/<name> - black decal.svg` with two layers:
+- `black (print)`: the piece's black layer only, recoloured **pure #000000** (the art uses
+  #12160d, which the laser builds from all four toners, giving halftone dots and a brown edge).
+- `decal cut`: one rounded rectangle round the black art, margin and corner radius 1/16in
+  (`--margin`), 8 nodes. In Silhouette Studio: cut line = cut, no line colour; black art = no cut.
+Colour, holes, centerline and reference layers are left out. Standard library only.
+Skips files whose black layer has transforms or non-path shapes (none do at present).
