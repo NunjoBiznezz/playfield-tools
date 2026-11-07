@@ -260,9 +260,10 @@ def main():
             except (TypeError, ValueError): pass
         print("  hole list: %d points" % k)
 
-    ET.ElementTree(svg).write(OUT, encoding="utf-8", xml_declaration=True)
+    # drop colour layers no piece used, then save (removing them after saving left them in the file)
     for g in list(bg_layers.values()) + list(colour_layers.values()) + [cream, inserts]:
         if len(g) == 0: svg.remove(g)
+    ET.ElementTree(svg).write(OUT, encoding="utf-8", xml_declaration=True)
     print("wrote %s (%d pieces)" % (os.path.basename(OUT), placed))
 
 if __name__ == "__main__":
