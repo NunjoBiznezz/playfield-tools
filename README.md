@@ -63,7 +63,7 @@ function has a one-line note on what it's for. For the stencil workflow, see
 | `rescale_images.py` | Fixes a uniform scale error (e.g. grid paper printed slightly too big) |
 | `png2stencil.py` | Flat-colour PNG → one traced SVG per colour |
 | `extract_b2s_images.py` | Pulls the backglass/DMD images out of a Visual Pinball `.directb2s` file |
-| `ocr_schematic.py` | Makes a scanned schematic PDF searchable, including sideways labels |
+| `ocr_schematic.py` | Makes a scanned schematic PDF searchable, including sideways labels (runs the `ocr/` package) |
 
 **Helper libraries** (imported by other scripts or used in a working session; not run on their own)
 
@@ -83,6 +83,19 @@ OCR, replaced by `ocr_schematic.py`.
 change `requirements.txt`), `layer_stencils.sh` (old name for `stencils.sh`).
 `new_game.sh` (in the repo root) starts a new game folder.
 
+## Schematic OCR, shared on its own
+
+The schematic OCR tool is also packaged by itself in `ocr/` as **schematic-ocr**, so
+other people can install it without the stencil scripts:
+
+```bash
+pipx install "git+https://github.com/NunjoBiznezz/playfield-tools#subdirectory=ocr"
+```
+
+See `ocr/README.md` for requirements, use and how to make a release (push a tag
+like `ocr-v1.0.0`; GitHub Actions attaches the downloadable files to a Release).
+`scripts/ocr_schematic.py` runs the same code, so fix things in `ocr/src/schematic_ocr/cli.py`.
+
 ## Python
 
 All the scripts share one environment, `~/.venvs/playfield-tools`, kept outside iCloud
@@ -96,3 +109,7 @@ bash scripts/setup.sh
 After that the scripts find it by themselves - `python3 scripts/make_all_stencils.py`
 works without activating anything, and `stencils.sh` runs setup for you the first time.
 To add a package, put its name in `scripts/requirements.txt` and run `bash scripts/update.sh`.
+
+## License
+
+MIT - see `LICENSE`. Use, change and share these freely.

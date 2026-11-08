@@ -1,0 +1,7 @@
+# Python packages schematic-ocr needs (same list as pyproject.toml).
+# Also needs the tesseract and poppler command-line tools - see README.md.
+pillow>=9.1
+pytesseract>=0.3.10
+reportlab>=3.6
+pypdf>=3.0
+pikepdf>=6.0
