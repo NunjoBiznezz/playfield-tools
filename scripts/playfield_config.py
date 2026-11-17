@@ -21,6 +21,9 @@ the folder.
       "underlay": "images/playfield aligned 150ppi.jpg",
       "colour_order": ["yellow", "green", "teal", "blue", "red", "black"],
       "not_sources": {"<file pattern>": "why it is not a stencil source"},
+      "cream_stencils": ["LC * girl.svg"],   pieces that get cream base / touch-up sheets
+                                           (file patterns; only pieces whose bare wood is marked or
+                                           that have none - see make_cream_stencils.py). Default none.
       "game_steps": [                      game-only scripts make_all_stencils.py also runs
         {"name": "LC green rings",
          "script": "game_scripts/make_green_rings.py",   must have a main()
@@ -55,6 +58,7 @@ def load(folder=None):
         "underlay": "images/playfield aligned 150ppi.jpg",
         "colour_order": ["yellow", "green", "teal", "blue", "red", "black"],
         "not_sources": {},
+        "cream_stencils": [],
         "game_steps": [],
     }
     out.update({k: v for k, v in cfg.items() if v is not None})

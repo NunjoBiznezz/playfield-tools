@@ -17,6 +17,10 @@ decides and calls them:
                           its colour stencils leave out the keyline edges (subpaths lying
                           on the keyline band), because the border stencil paints those,
                           and a layer that is only keyline gets no colour stencil.
+  make_cream_stencils.py  an "area" layer + paint layers, and named in playfield.json "cream_stencils"
+                          -> "cream base stencil" (whole area less bare wood/inserts/holes)
+                          -> "cream touch-up stencil" (only the visible cream)
+                          same marks as the colour sheets
   game steps              scripts that belong to one game only (e.g. Lady Luck's
                           game_scripts/make_green_rings.py), listed under "game_steps"
                           in that game's playfield.json - run when doing the whole
@@ -47,12 +51,15 @@ sys.path.insert(0, HERE)
 import importlib.util
 import make_stencils
 import make_layer_stencils
+import make_cream_stencils
 import playfield_config
 
 CFG = playfield_config.load()
 # files in stencils/ that are not stencil sources (checked against the file name) - from playfield.json
 NOT_SOURCES = dict(CFG['not_sources'])
 GAME_STEPS = list(CFG['game_steps'])
+# pieces that get cream base / touch-up sheets (file patterns) - from playfield.json
+CREAM = list(CFG.get('cream_stencils', []))
 
 
 def run_game_step(step):
@@ -86,6 +93,10 @@ def plan(path):
                           'colour stencils for the paint layers (keyline left to the border stencil)'))
         else:
             steps.append((make_layer_stencils, [], make_layer_stencils.KIND))
+    if any(fnmatch.fnmatch(os.path.basename(path), pat) for pat in CREAM) and make_cream_stencils.applies(root):
+        # listed in playfield.json "cream_stencils", with area + paint layers: cream base and touch-up sheets
+        steps.append((make_cream_stencils, ['--except-keyline'] if make_stencils.applies(root) else [],
+                      make_cream_stencils.KIND))
     return steps, ('' if steps else 'no centerline layer and no paint layers - nothing to make')
 
 

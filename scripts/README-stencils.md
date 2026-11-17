@@ -12,9 +12,10 @@ stencil keeps its own script (below); make_all_stencils.py only decides and call
 
 | The SVG has | Generator | Makes |
 |---|---|---|
-| a `centerline` layer | make_stencils.py | area stencil, area mask, border stencil |
+| a `centerline` layer | make_stencils.py | area stencil, area mask, border stencil (named by its colour: `border (blue) stencil`) |
 | paint layers (red, blue, black ...) | make_layer_stencils.py | one stencil per paint layer (black last); `1 area mask` if there is an `area` layer; trim lines from a `trim` layer |
 | both | both | the bordered set **and** a numbered stencil for each colour (see below) |
+| an `area` layer + paint layers, **and** named under `cream_stencils` in playfield.json | make_cream_stencils.py | `cream base stencil` and `cream touch-up stencil` (same marks as the colour sheets) |
 | (whole folder only) | make_green_rings.py | LC green rings sheets, from Lady Luck playfield.svg |
 
 **Pieces with a centerline and colours** (e.g. UC pop bumper with 100 rollover, UL queen lane, the
@@ -51,6 +52,23 @@ their saturn centre hole and the two big round holes): centre each window over i
 The mask sheet carries no trim lines. Options: `--window-margin 0.02`, `--min-window 0.15`,
 `--windows none`. The UL/UR/CC pop bumper covers end on the middle of the outer black line.
 
+### Cream stencils (make_cream_stencils.py)
+Cream is the base coat, so the art has no cream layer. For the pieces listed under
+`"cream_stencils"` in playfield.json (file patterns) the master also writes two unnumbered sheets:
+
+| Sheet | Use |
+|---|---|
+| `<name> - cream base stencil.svg` | Cream coat for the whole piece **before** its colours and black (they cover it). One opening = the area outline, less anything marked as never painted. |
+| `<name> - cream touch-up stencil.svg` | Fixing cream **after** the colours and black are on: openings = the area minus every paint layer, ending at the black's edge. Cream narrower than 0.02in is left closed (brush it). Loose bits of film (letters, dots) stay on transfer tape; usually cut just the part you need. |
+
+Never painted: a layer labelled `no paint (reference - no cut)` (or `wood ...`) in the source -
+e.g. the lane inside the CARD VALUE oval and the card's 3/4in insert - and the holes in the
+`holes (registration)` layer (not posts). A paint layer with "cream" in its name counts as cream.
+Only list a piece once any bare wood inside its area is marked (the pop bumpers' wood rings are
+not yet, so they are not listed). Options: `--trap 0.013` runs the touch-up openings under the
+black (if the black will be repainted), `--min 0.02` narrowest opening.
+Run on its own: `python3 scripts/make_cream_stencils.py "stencils/LC lady luck girl.svg"`.
+
 ## make_stencils.py
 Makes the three cut files for a painted area with a keyline (border) around it.
 They are written to a `_generated` folder in the directory you run the script from
@@ -62,7 +80,7 @@ rather than editing them.
 |---|---|
 | `<name> - area stencil.svg` | Paint the area colour (e.g. cream). Keep the piece that drops out: it is the area mask. |
 | `<name> - area mask.svg` | A separate copy of the mask, if you need to recut it. |
-| `<name> - border stencil.svg` | Paint the keyline (border) colour last. |
+| `<name> - border (<colour>) stencil.svg` | Paint the keyline (border) colour last. `<colour>` is the paint layer the keyline is drawn in (see "Border colour in the file name"). |
 
 The source SVG needs a layer with id `centerline` (one closed path along the middle
 of the keyline, `data-width="0.06in"` = line width) and, optionally, a `holes` layer
@@ -79,7 +97,7 @@ own copy, so it doesn't matter that the project folder syncs between them.
 (The project's `.venv` folder was made on the Mac mini and points at that Mac's paths,
 so it isn't used for this.)
 
-Output: `_generated/UL slingshot - border stencil.svg` etc. (`--outdir` to put them elsewhere).
+Output: `_generated/UL slingshot - border (blue) stencil.svg` etc. (`--outdir` to put them elsewhere).
 
 
 Options go after the file name, e.g. `bash scripts/stencils.sh "UL slingshot.svg" --overlap 0.01`
@@ -110,6 +128,18 @@ Every closed path in the centerline layer gets its own border band, so nested ke
 (a card outline inside an arrow, a ring inside a banner) all appear in the border stencil.
 A path can have its own `data-width="0.03in"`; otherwise it uses the layer's data-width.
 `--width` on the command line overrides all of them.
+
+### Border colour in the file name
+The border file is named after the paint layer its keyline is drawn in: `UL slingshot - border (blue)
+stencil.svg`, `CL saucer joker - border (black) stencil.svg`. Nothing is typed in or listed anywhere -
+the script matches each centre line against the file's paint layers and takes the layer's own name
+(and its fill colour for the preview). A layer draws the keyline when it is a *line* there: its paint
+lies in the band and stops at the band's edges. A colour area that runs under the line, or a piece in
+front that covers part of it, carries on past the edges, so it is not taken for the keyline.
+- Keylines in two colours in one piece: one border file per colour (`border (blue)`, `border (black)`).
+- A centre line with no paint drawn on it (a file with only a centerline layer, e.g. fan card,
+  lane card): plain `border stencil`.
+Each run prints which layer it found (`keyline drawn in layer "blue"`).
 
 ### Sharp tips
 Border bands are offset with mitre joins, so a sharp tip (banner swallowtail, arrow wing)
